@@ -1,0 +1,123 @@
+@layer base {
+  :root {
+    /* Light Mode - GFG Classic (White & Sea Green) */
+    --background: 0 0% 100%;
+    --foreground: 0 0% 10%;
+
+    --card: 0 0% 98%;
+    --card-foreground: 0 0% 10%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 0 0% 10%;
+
+    --primary: 135 50% 37%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 135 20% 96%;
+    --secondary-foreground: 135 50% 37%;
+
+    --muted: 0 0% 96%;
+    --muted-foreground: 0 0% 45%;
+
+    --accent: 135 30% 90%;
+    --accent-foreground: 135 50% 37%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 0 0% 90%;
+    --input: 0 0% 90%;
+    --ring: 135 50% 37%;
+
+    --radius: 0.5rem;
+  }
+
+  .dark {
+    /* Dark Mode - GFG Style */
+    --background: 0 0% 15%;
+    --foreground: 0 0% 95%;
+
+    --card: 0 0% 20%;
+    --card-foreground: 0 0% 95%;
+
+    --popover: 0 0% 20%;
+    --popover-foreground: 0 0% 95%;
+
+    --primary: 135 45% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 0 0% 25%;
+    --secondary-foreground: 0 0% 95%;
+
+    --muted: 0 0% 25%;
+    --muted-foreground: 0 0% 70%;
+
+    --accent: 0 0% 30%;
+    --accent-foreground: 0 0% 95%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 0 0% 30%;
+    --input: 0 0% 25%;
+    --ring: 135 45% 55%;
+  }
+}
+
+@theme {
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground transition-colors duration-300;
+  }
+}
+
+@layer utilities {
+  .interactive-hover {
+    @apply transition-all duration-200 hover:shadow-md hover:border-primary/50 cursor-pointer;
+  }
+
+  .glass-panel {
+    @apply bg-card/95 border border-border shadow-sm;
+  }
+
+  .code-block {
+    @apply font-mono bg-muted p-2 rounded text-sm text-foreground;
+  }
+}
