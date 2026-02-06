@@ -1,4 +1,3 @@
-import { ModeToggle } from "./ModeToggle";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
     BookOpen,
@@ -29,6 +28,7 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
     const menuItems = [
         { icon: BarChart3, label: "Dashboard", path: "/dashboard" },
         { icon: BookOpen, label: "Roadmap", path: "/roadmap" },
+        { icon: FileText, label: "Notes", path: "/notes" },
         { icon: Brain, label: "AI Notes", path: "/ai-notes" },
         { icon: Calendar, label: "Study Plan", path: "/study-plan" },
         { icon: FileText, label: "Quiz", path: "/quiz" },
@@ -95,7 +95,6 @@ export function Sidebar({ isOpen, onClose }: SidebarProps) {
 
                     {/* User / Logout */}
                     <div className="p-4 border-t border-border bg-muted/20 space-y-2">
-                        <ModeToggle />
                         <button
                             onClick={handleLogout}
                             className="flex items-center gap-3 w-full px-4 py-3 text-destructive hover:bg-destructive/10 rounded-xl transition-colors"
