@@ -16,7 +16,7 @@ router = APIRouter()
 # Constants
 MAX_OTP_ATTEMPTS = 5
 OTP_SIGNUP_EXPIRY_MINUTES = 2
-OTP_RESET_EXPIRY_MINUTES = 5
+OTP_RESET_EXPIRY_MINUTES = 10  # Increased from 5 to 10 minutes for better UX
 
 
 @router.post("/sign_up", status_code=status.HTTP_201_CREATED)
@@ -256,6 +256,12 @@ def forgot_password(
 
     # Generate new OTP
     otp = generate_otp()
+    
+    # Log OTP to console for testing (REMOVE IN PRODUCTION)
+    print(f"\n{'='*50}")
+    print(f"🔐 OTP for {password_reset.email}: {otp}")
+    print(f"⏰ Valid for {OTP_RESET_EXPIRY_MINUTES} minutes")
+    print(f"{'='*50}\n")
 
     user_verification = PasswordResetOTP(
         email=password_reset.email,
@@ -276,6 +282,8 @@ def reset_password(data: ResetPassword, db: Session = Depends(get_db)):
     """
     Reset user password using OTP verification.
     """
+    print(f"[DEBUG] Reset password request for email: {data.email}")
+    
     # Lock the verification record to prevent race conditions
     verification = (
         db.query(PasswordResetOTP)
@@ -285,13 +293,17 @@ def reset_password(data: ResetPassword, db: Session = Depends(get_db)):
     )
 
     if not verification:
+        print(f"[DEBUG] No verification record found for email: {data.email}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired OTP",
         )
 
+    print(f"[DEBUG] Verification found. Expires at: {verification.expires_at}, Current time: {datetime.utcnow()}")
+    
     # Check if OTP has expired
     if verification.expires_at < datetime.utcnow():
+        print(f"[DEBUG] OTP expired for email: {data.email}")
         db.delete(verification)
         db.commit()
         raise HTTPException(
@@ -301,6 +313,7 @@ def reset_password(data: ResetPassword, db: Session = Depends(get_db)):
 
     # Check if maximum attempts exceeded
     if verification.otp_attempts >= MAX_OTP_ATTEMPTS:
+        print(f"[DEBUG] Max attempts exceeded for email: {data.email}")
         db.delete(verification)
         db.commit()
         raise HTTPException(
@@ -308,21 +321,27 @@ def reset_password(data: ResetPassword, db: Session = Depends(get_db)):
             detail="Too many failed attempts. Please request a new OTP",
         )
 
+    print(f"[DEBUG] Verifying OTP. Attempts so far: {verification.otp_attempts}")
+    
     # Verify OTP
     if not verify_otp(data.otp, verification.code):
         verification.otp_attempts += 1
         db.commit()
         
         remaining_attempts = MAX_OTP_ATTEMPTS - verification.otp_attempts
+        print(f"[DEBUG] Invalid OTP for email: {data.email}. Remaining attempts: {remaining_attempts}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid OTP. {remaining_attempts} attempts remaining",
         )
 
+    print(f"[DEBUG] OTP verified successfully for email: {data.email}")
+    
     # Find user and update password
     user = db.query(Student).filter(Student.email == data.email).first()
 
     if not user:
+        print(f"[DEBUG] User not found for email: {data.email}")
         db.delete(verification)
         db.commit()
         raise HTTPException(
@@ -334,4 +353,5 @@ def reset_password(data: ResetPassword, db: Session = Depends(get_db)):
     db.delete(verification)
     db.commit()
 
+    print(f"[DEBUG] Password reset successful for email: {data.email}")
     return {"msg": "Password reset successful"}

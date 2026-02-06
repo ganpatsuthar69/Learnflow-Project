@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from "react";
-import { Lock, Eye, EyeOff, Mail } from "lucide-react";
+import React, { useState, useEffect, useRef } from "react";
+import { Lock, Eye, EyeOff, Mail, Clock } from "lucide-react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { resetPasswordRequest } from "../services/authApi";
 import { ForgotPassword } from "../services/authApi";
@@ -17,20 +17,86 @@ export default function PasswordReset() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
+  const [otpSent, setOtpSent] = useState(false);
+  const [remainingSeconds, setRemainingSeconds] = useState(0);
+  const [isResending, setIsResending] = useState(false);
+  const timerRef = useRef<number | null>(null);
 
-  useEffect(() => {
-    if (!email) return;
+  // Extract remaining seconds from error message
+  const extractRemainingSeconds = (message: string): number => {
+    const match = message.match(/wait (\d+) seconds?/i);
+    return match ? parseInt(match[1], 10) : 0;
+  };
 
-    const sendOtp = async () => {
-      try {
-        await ForgotPassword({ email });
-      } catch (error) {
-        console.error("Failed to send OTP", error);
+  // Send OTP function
+  const sendOtp = async () => {
+    setIsResending(true);
+    setErrorMsg(null);
+    setSuccessMsg(null);
+
+    try {
+      await ForgotPassword({ email });
+      setOtpSent(true);
+      setSuccessMsg("OTP sent to your email");
+      setTimeout(() => setSuccessMsg(null), 3000);
+    } catch (err: unknown) {
+      const error = err as { response?: { data?: { detail?: string }; status?: number } };
+
+      if (error.response?.status === 429) {
+        const message = error.response?.data?.detail || "Too many requests. Please wait.";
+        const seconds = extractRemainingSeconds(message);
+
+        if (seconds > 0) {
+          setRemainingSeconds(seconds);
+          setErrorMsg(`OTP already sent. Please wait ${seconds} seconds before requesting again.`);
+        } else {
+          setErrorMsg(message);
+        }
+      } else {
+        setErrorMsg(error.response?.data?.detail || "Failed to send OTP");
       }
-    };
+    } finally {
+      setIsResending(false);
+    }
+  };
 
+  // Initial OTP send on mount (only once)
+  useEffect(() => {
+    if (!email || otpSent) return;
     sendOtp();
   }, [email]);
+
+  // Countdown timer for rate limiting
+  useEffect(() => {
+    if (remainingSeconds <= 0) {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      return;
+    }
+
+    timerRef.current = setInterval(() => {
+      setRemainingSeconds((prev) => {
+        if (prev <= 1) {
+          setErrorMsg(null);
+          if (timerRef.current) {
+            clearInterval(timerRef.current);
+            timerRef.current = null;
+          }
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => {
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+    };
+  }, [remainingSeconds]);
 
   // Safety check
   if (!email) {
@@ -95,6 +161,29 @@ export default function PasswordReset() {
               OTP sent to <span className="font-semibold text-primary">{email}</span>
             </p>
           </div>
+
+          {/* Resend OTP Section */}
+          {remainingSeconds > 0 ? (
+            <div className="mb-6 bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 flex items-center gap-3">
+              <Clock className="w-5 h-5 text-amber-600 dark:text-amber-400 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-sm text-amber-700 dark:text-amber-300">
+                  Please wait <span className="font-bold">{remainingSeconds}s</span> before requesting a new OTP
+                </p>
+              </div>
+            </div>
+          ) : otpSent && (
+            <div className="mb-6 text-center">
+              <button
+                type="button"
+                onClick={sendOtp}
+                disabled={isResending}
+                className="text-sm text-primary hover:text-primary/80 font-medium underline underline-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              >
+                {isResending ? "Sending..." : "Didn't receive OTP? Resend"}
+              </button>
+            </div>
+          )}
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-6">
