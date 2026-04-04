@@ -2,16 +2,16 @@
 #password hash logic
 #otp generation and send otp
 
+import smtplib
+import ssl
+from email.message import EmailMessage
 from passlib.context import CryptContext # type: ignore
 from jose import jwt, JWTError # type: ignore
 from datetime import datetime, timedelta
 from .config import settings
 import secrets, hashlib
 from datetime import datetime, timedelta
-import smtplib
 from app.core.config import *
-import ssl
-from email.message import EmailMessage
 
 pwd_ctx = CryptContext(schemes=["argon2"], deprecated="auto")
 
@@ -50,22 +50,40 @@ def verify_otp(plain_otp: str, hashed_otp: str) -> bool:
     return hashlib.sha256(plain_otp.encode()).hexdigest() == hashed_otp
 
 
-def send_email_otp(to_email, otp):
-    smtp_server = "smtp.sendgrid.net"
-    smtp_port = 587
-    smtp_user = "apikey"
-    smtp_password = settings.smtp_password #from sendgrid , created api
+
+def send_email_otp(to_email: str, otp: str):
+    smtp_server = settings.MAIL_SERVER
+    smtp_port = settings.MAIL_PORT
+    smtp_user = settings.MAIL_USERNAME
+    smtp_password = settings.MAIL_PASSWORD
 
     message = EmailMessage()
-    message["From"] = "LearnFlow <bheruji71@gmail.com>"
-    message["Reply-To"] = "bheruji71@gmail.com"  
+    message["From"] = f"LearnFlow <{settings.MAIL_FROM}>"
+    message["Reply-To"] = settings.MAIL_FROM
     message["To"] = to_email
-    message["Subject"] = "Your OTP"
-    message.set_content(f"Your OTP for Learnflow is: {otp}")
+    message["Subject"] = "Your OTP - LearnFlow"
+
+    message.set_content(f"""
+                            Hi,
+
+                            Your OTP for LearnFlow is: {otp}
+
+                            This OTP is valid for 5 minutes.
+
+                            If you did not request this, please ignore this email.
+
+                            - LearnFlow Team
+                            """)
 
     context = ssl.create_default_context()
 
-    with smtplib.SMTP(smtp_server, smtp_port) as server:
-        server.starttls(context=context)
-        server.login(smtp_user, smtp_password)
-        server.send_message(message)
+    try:
+        with smtplib.SMTP(smtp_server, smtp_port) as server:
+            server.starttls(context=context)
+            server.login(smtp_user, smtp_password)
+            server.send_message(message)
+
+        print("Email sent successfully")
+
+    except Exception as e:
+        print("Email sending failed:", str(e))

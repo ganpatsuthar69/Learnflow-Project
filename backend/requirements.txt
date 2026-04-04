@@ -2,6 +2,7 @@
 fastapi==0.128.1
 uvicorn==0.40.0
 python-multipart==0.0.22
+fastapi_mail
 
 # Database
 sqlalchemy==2.0.46

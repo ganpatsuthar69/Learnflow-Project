@@ -6,11 +6,23 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+ts_build_errors*.log
+ts_errors*.txt
+lint_errors*.log
+lint_errors*.txt
+lint_output.txt
+build_log*.txt
+lint_components*.json
 
+# Dependencies
 node_modules
 dist
 dist-ssr
 *.local
+
+# Environment variables
+.env
+.env.*
 
 # Editor directories and files
 .vscode/*
@@ -23,64 +35,5 @@ dist-ssr
 *.sln
 *.sw?
 
-# ======================
-# Environment variables
-# ======================
-.env
-.env.*
-backend/.env
-frontend/.env
-frontend/.env.*
-
-# ======================
-# Node / Frontend
-# ======================
-node_modules/
-frontend/node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-
-# Vite build output
-dist/
-frontend/dist/
-
-# ======================
-# Python / Backend
-# ======================
-__pycache__/
-*.py[cod]
-*.pyo
-*.pyd
-.venv/
-venv/
-env/
-myenv/
-ENV/
-
-# ======================
-# OS / Editor files
-# ======================
-.DS_Store
+# OS
 Thumbs.db
-*.swp
-*.swo
-.vscode/
-.idea/
-
-# ======================
-# Logs
-# ======================
-*.log
-
-# ======================
-# Test / coverage
-# ======================
-coverage/
-.pytest_cache/
-
-# ======================
-# Git
-# ======================
-*.orig
