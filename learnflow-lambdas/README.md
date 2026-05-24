@@ -1,38 +1,40 @@
 # LearnFlow Lambda Functions
 
-Serverless AI workloads for LearnFlow, deployed on AWS Lambda.
+Serverless workloads for LearnFlow, deployed on AWS Lambda.
 
 ## Architecture
 
 ```
 learnflow-lambdas/
+├── functions/
+│   ├── ai_processor/       # All AI/LLM tasks (roadmap, summarizer, quiz)
+│   └── task_processor/     # Utility tasks (email, weak topics, revision scheduler)
+├── shared/                 # Shared Python utilities (db, llm, sqs, config)
 ├── infra/                  # AWS CDK infrastructure
-├── layers/                 # Shared Lambda layers (common deps)
-├── functions/              # Individual Lambda functions
-│   ├── roadmap_generator/
-│   ├── note_summarizer/
-│   ├── quiz_generator/
-│   ├── revision_scheduler/
-│   ├── weak_topic_analyzer/
-│   └── email_sender/
-└── shared/                 # Shared Python utilities across functions
+├── .env                    # Environment variables
+├── requirements.txt        # All dependencies
+└── redeploy.sh             # Deployment script
 ```
 
 ## Functions
 
-| Function | Trigger | Purpose |
-|----------|---------|---------|
-| roadmap_generator | SQS | Calls Mistral LLM to generate personalized roadmaps |
-| note_summarizer | SQS | Summarizes notes/PDFs into key points, flashcards, MCQs |
-| quiz_generator | SQS | Generates topic-aware quizzes via LLM |
-| revision_scheduler | EventBridge (cron) | Daily job to calculate spaced repetition schedule |
-| weak_topic_analyzer | SQS | Analyzes quiz/revision data to detect weak topics |
-| email_sender | SQS | Sends transactional emails (OTP, notifications) |
+| Function | Queue | Trigger | Actions |
+|----------|-------|---------|---------|
+| ai_processor | learnflow-ai-queue | SQS | generate_roadmap, summarize_note, generate_quiz |
+| task_processor | learnflow-task-queue | SQS + EventBridge cron | send_email, analyze_weak_topics, schedule_revisions |
 
 ## Deploy
 
 ```bash
+source .venv/bin/activate
 cd infra
-pip install -r requirements.txt
-cdk deploy --all
+cdk deploy --all --profile learnflow
+```
+
+## Quick Redeploy
+
+```bash
+./redeploy.sh ai       # Redeploy AI processor only
+./redeploy.sh task     # Redeploy Task processor only
+./redeploy.sh          # Full CDK deploy
 ```

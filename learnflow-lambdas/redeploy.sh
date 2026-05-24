@@ -1,86 +1,120 @@
 #!/bin/bash
 
+# ═══════════════════════════════════════════════════════════════════════════════
 # LearnFlow Lambda Redeployment Script
+# ═══════════════════════════════════════════════════════════════════════════════
+#
 # Usage:
-#   ./redeploy.sh              → Redeploy all Lambda functions
-#   ./redeploy.sh roadmap      → Redeploy only roadmap_generator
-#   ./redeploy.sh summarizer   → Redeploy only note_summarizer
-#   ./redeploy.sh quiz         → Redeploy only quiz_generator
-#   ./redeploy.sh revision     → Redeploy only revision_scheduler
-#   ./redeploy.sh weak         → Redeploy only weak_topic_analyzer
-#   ./redeploy.sh email        → Redeploy only email_sender
+#   ./redeploy.sh          → Redeploy all via CDK
+#   ./redeploy.sh ai       → Quick redeploy AI processor only
+#   ./redeploy.sh task     → Quick redeploy Task processor only
+#
+# ═══════════════════════════════════════════════════════════════════════════════
 
 set -e
 
+# ─── Configuration (edit these as needed) ──────────────────────────────────────
+
+# AWS
 PROFILE="learnflow"
 REGION="ap-south-1"
 
-# Function name mapping
-declare -A FUNCTIONS=(
-    [roadmap]="learnflow-roadmap-generator"
-    [summarizer]="learnflow-note-summarizer"
-    [quiz]="learnflow-quiz-generator"
-    [revision]="learnflow-revision-scheduler"
-    [weak]="learnflow-weak-topic-analyzer"
-    [email]="learnflow-email-sender"
-)
+# Lambda Function Names (rename here if needed)
+AI_FUNCTION_NAME="learnflow-ai-processor"
+TASK_FUNCTION_NAME="learnflow-task-processor"
 
-# Colors
+# Paths
+LAMBDA_ROOT="$(cd "$(dirname "$0")" && pwd)"
+BACKEND_ROOT="$(dirname "$LAMBDA_ROOT")/learnflow-backend"
+
+# Function directories
+AI_DIR="functions/ai_processor"
+TASK_DIR="functions/task_processor"
+
+# ─── Colors ────────────────────────────────────────────────────────────────────
+
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 RED='\033[0;31m'
+CYAN='\033[0;36m'
 NC='\033[0m'
 
-echo -e "${YELLOW}🚀 LearnFlow Lambda Redeployment${NC}"
-echo "-----------------------------------"
+# ─── Helper Functions ──────────────────────────────────────────────────────────
 
-# If specific function requested
-if [ -n "$1" ]; then
-    FUNC_NAME="${FUNCTIONS[$1]}"
+print_config() {
+    echo -e "${CYAN}Configuration:${NC}"
+    echo "  Profile:        $PROFILE"
+    echo "  Region:         $REGION"
+    echo "  Lambda Root:    $LAMBDA_ROOT"
+    echo "  Backend Root:   $BACKEND_ROOT"
+    echo "  AI Function:    $AI_FUNCTION_NAME"
+    echo "  Task Function:  $TASK_FUNCTION_NAME"
+    echo ""
+}
 
-    if [ -z "$FUNC_NAME" ]; then
-        echo -e "${RED}❌ Unknown function: $1${NC}"
-        echo "Available: roadmap, summarizer, quiz, revision, weak, email"
-        exit 1
-    fi
+deploy_function() {
+    local func_name=$1
+    local func_dir=$2
 
-    echo -e "${YELLOW}📦 Packaging $1...${NC}"
+    echo -e "${YELLOW}📦 Packaging ${func_name}...${NC}"
 
-    # Package the function code
-    FUNC_DIR="functions/${1/roadmap/roadmap_generator}"
-    FUNC_DIR="${FUNC_DIR/summarizer/note_summarizer}"
-    FUNC_DIR="${FUNC_DIR/quiz/quiz_generator}"
-    FUNC_DIR="${FUNC_DIR/revision/revision_scheduler}"
-    FUNC_DIR="${FUNC_DIR/weak/weak_topic_analyzer}"
-    FUNC_DIR="${FUNC_DIR/email/email_sender}"
+    cd "$LAMBDA_ROOT"
 
-    # Create temp zip
-    cd "$FUNC_DIR"
-    zip -r /tmp/lambda-deploy.zip . -x "*.pyc" "__pycache__/*"
-    cd - > /dev/null
+    # Create zip with function code + shared module
+    rm -f /tmp/lambda-deploy.zip
+    cd "$func_dir"
+    zip -r /tmp/lambda-deploy.zip . -x "*.pyc" "__pycache__/*" > /dev/null
+    cd "$LAMBDA_ROOT"
+    zip -r /tmp/lambda-deploy.zip shared/ -x "*.pyc" "__pycache__/*" > /dev/null
 
-    # Include shared module
-    zip -r /tmp/lambda-deploy.zip shared/ -x "*.pyc" "__pycache__/*"
-
-    echo -e "${YELLOW}⬆️  Deploying ${FUNC_NAME}...${NC}"
+    echo -e "${YELLOW}⬆️  Deploying ${func_name}...${NC}"
     aws lambda update-function-code \
-        --function-name "$FUNC_NAME" \
+        --function-name "$func_name" \
         --zip-file fileb:///tmp/lambda-deploy.zip \
         --profile "$PROFILE" \
         --region "$REGION" \
-        --no-cli-pager
+        --no-cli-pager > /dev/null
 
-    rm /tmp/lambda-deploy.zip
-    echo -e "${GREEN}✅ $FUNC_NAME deployed successfully${NC}"
+    rm -f /tmp/lambda-deploy.zip
+    echo -e "${GREEN}✅ ${func_name} deployed successfully${NC}"
+}
 
-else
-    # Deploy all via CDK
-    echo -e "${YELLOW}📦 Deploying all functions via CDK...${NC}"
-    cd infra
-    cdk deploy --all --profile "$PROFILE" --require-approval never
-    cd ..
-    echo -e "${GREEN}✅ All Lambda functions deployed successfully${NC}"
-fi
+# ─── Main ──────────────────────────────────────────────────────────────────────
 
-echo "-----------------------------------"
+echo ""
+echo -e "${YELLOW}🚀 LearnFlow Lambda Redeployment${NC}"
+echo "═══════════════════════════════════════"
+print_config
+
+case "${1:-all}" in
+    ai)
+        deploy_function "$AI_FUNCTION_NAME" "$AI_DIR"
+        ;;
+    task)
+        deploy_function "$TASK_FUNCTION_NAME" "$TASK_DIR"
+        ;;
+    all)
+        echo -e "${YELLOW}📦 Deploying all via CDK...${NC}"
+        cd "$LAMBDA_ROOT/infra"
+        cdk deploy --all --profile "$PROFILE" --require-approval never
+        cd "$LAMBDA_ROOT"
+        echo -e "${GREEN}✅ All deployed via CDK${NC}"
+        ;;
+    config)
+        echo "Done."
+        ;;
+    *)
+        echo -e "${RED}❌ Unknown target: $1${NC}"
+        echo ""
+        echo "Usage: ./redeploy.sh [ai|task|all|config]"
+        echo "  ai     - Quick redeploy AI processor"
+        echo "  task   - Quick redeploy Task processor"
+        echo "  all    - Full CDK deploy (default)"
+        echo "  config - Show configuration only"
+        exit 1
+        ;;
+esac
+
+echo "═══════════════════════════════════════"
 echo -e "${GREEN}Done!${NC}"
+echo ""

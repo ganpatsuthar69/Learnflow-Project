@@ -8,7 +8,11 @@ venv/
 dist/
 build/
 .pytest_cache/
-cdk.out/
-.aws-sam/
 node_modules/
-.venv
+
+# CDK build output
+**/cdk.out/
+infra/__pycache__/
+
+# Lambda layer (built dependencies)
+layers/python/
