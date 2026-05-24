@@ -1,62 +1,60 @@
 from fastapi import Depends, HTTPException, status, BackgroundTasks, APIRouter
-from sqlalchemy.orm import Session  # type: ignore
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from app.db.session import get_db
-from app.models.user import Student
+from app.models.user import Student, Profile
 from app.models.verification import Verification, PasswordResetOTP
 from app.schema.user import Student_login, Student_Signup
 from app.schema.jwt_and_otp import TokenResponse, VerifyOTP, ResetPassword, ForgotPassword
-from sqlalchemy import or_  # type: ignore
-from app.core.security import *
+from app.core.security import (
+    hash_password, verify_password, create_access_token,
+    generate_otp, hash_otp, otp_expiry, verify_otp, send_email_otp,
+)
 from datetime import datetime
-from sqlalchemy.exc import IntegrityError
-from app.models.user import Profile
 
 router = APIRouter()
 
 # Constants
 MAX_OTP_ATTEMPTS = 5
 OTP_SIGNUP_EXPIRY_MINUTES = 2
-OTP_RESET_EXPIRY_MINUTES = 10  # Increased from 5 to 10 minutes for better UX
+OTP_RESET_EXPIRY_MINUTES = 10
 
 
 @router.post("/sign_up", status_code=status.HTTP_201_CREATED)
-def sign_up_form(
+async def sign_up_form(
     student_signup: Student_Signup,
     background_tsks: BackgroundTasks,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    """
-    Register a new student and send OTP for email verification.
-    """
-    # Check if email or mobile number already exists
-    exist = db.query(Student).filter(Student.email == student_signup.email).first()
-
-    if exist:
+    """Register a new student and send OTP for email verification."""
+    result = await db.execute(
+        select(Student).filter(Student.email == student_signup.email)
+    )
+    if result.scalars().first():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email or Mobile Number already registered",
         )
 
-    # Check if username already exists
-    exist_username = db.query(Student).filter(
-        Student.username == student_signup.username
-    ).first()
-    
-    if exist_username:
+    result = await db.execute(
+        select(Student).filter(Student.username == student_signup.username)
+    )
+    if result.scalars().first():
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This username already exists",
         )
 
     now = datetime.utcnow()
-    
+
     # Check for existing verification with row lock
-    existv = (
-        db.query(Verification)
+    result = await db.execute(
+        select(Verification)
         .filter(Verification.email == student_signup.email)
         .with_for_update()
-        .first()
     )
+    existv = result.scalars().first()
 
     if existv:
         if existv.expires_at and existv.expires_at > now:
@@ -66,8 +64,8 @@ def sign_up_form(
                 detail=f"OTP already sent. Please wait {remaining_seconds} seconds",
             )
         else:
-            db.delete(existv)
-            db.commit()
+            await db.delete(existv)
+            await db.commit()
 
     # Generate OTP and create verification record
     otp = generate_otp()
@@ -86,10 +84,10 @@ def sign_up_form(
 
     try:
         db.add(user_st)
-        db.commit()
-        db.refresh(user_st)
+        await db.commit()
+        await db.refresh(user_st)
     except IntegrityError:
-        db.rollback()
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Unable to create verification. Please try again.",
@@ -100,17 +98,17 @@ def sign_up_form(
 
 
 @router.post("/sign_up/verify", status_code=status.HTTP_200_OK)
-def verify_user_by_email(otp_verify: VerifyOTP, db: Session = Depends(get_db)):
-    """
-    Verify email with OTP and complete user registration.
-    """
-    # Lock the verification record to prevent race conditions
-    v = (
-        db.query(Verification)
+async def verify_user_by_email(
+    otp_verify: VerifyOTP,
+    db: AsyncSession = Depends(get_db),
+):
+    """Verify email with OTP and complete user registration."""
+    result = await db.execute(
+        select(Verification)
         .filter(Verification.email == otp_verify.email)
         .with_for_update()
-        .first()
     )
+    v = result.scalars().first()
 
     if not v:
         raise HTTPException(
@@ -120,29 +118,25 @@ def verify_user_by_email(otp_verify: VerifyOTP, db: Session = Depends(get_db)):
 
     now = datetime.utcnow()
 
-    # Check if OTP has expired
     if v.expires_at is None or v.expires_at < now:
-        db.delete(v)
-        db.commit()
+        await db.delete(v)
+        await db.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="OTP expired. Please sign up again",
         )
 
-    # Check if maximum attempts exceeded
     if v.otp_attempts >= MAX_OTP_ATTEMPTS:
-        db.delete(v)
-        db.commit()
+        await db.delete(v)
+        await db.commit()
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many failed attempts. Please sign up again",
         )
 
-    # Verify OTP
     if not verify_otp(otp_verify.otp, v.code):
         v.otp_attempts = (v.otp_attempts or 0) + 1
-        db.commit()
-        
+        await db.commit()
         remaining_attempts = MAX_OTP_ATTEMPTS - v.otp_attempts
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -150,9 +144,12 @@ def verify_user_by_email(otp_verify: VerifyOTP, db: Session = Depends(get_db)):
         )
 
     # Check if user already exists
-    if db.query(Student).filter(Student.email == v.email).first():
-        db.delete(v)
-        db.commit()
+    result = await db.execute(
+        select(Student).filter(Student.email == v.email)
+    )
+    if result.scalars().first():
+        await db.delete(v)
+        await db.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Email already registered",
@@ -166,14 +163,14 @@ def verify_user_by_email(otp_verify: VerifyOTP, db: Session = Depends(get_db)):
         username=v.username,
         hashed_password=v.hashed_password,
         is_active=True,
-        is_verified=True)
+        is_verified=True,
+    )
     try:
         db.add(user_ver)
-        db.delete(v)
-        db.commit()
-    except IntegrityError as e:
-        db.rollback()
-        print(e)
+        await db.delete(v)
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Verification failed. Please try again.",
@@ -183,65 +180,70 @@ def verify_user_by_email(otp_verify: VerifyOTP, db: Session = Depends(get_db)):
 
 
 @router.post("/login", response_model=TokenResponse)
-def user_login(student_log_in: Student_login, db: Session = Depends(get_db)):
-    """
-    Authenticate user and return access token.
-    """
-    user_exist = db.query(Student).filter(
-        Student.email == student_log_in.email
-    ).first()
+async def user_login(
+    student_log_in: Student_login,
+    db: AsyncSession = Depends(get_db),
+):
+    """Authenticate user and return access token."""
+    result = await db.execute(
+        select(Student).filter(Student.email == student_log_in.email)
+    )
+    user_exist = result.scalars().first()
 
-    # Check if user exists and is active
     if not user_exist or not user_exist.is_active:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Invalid credentials")
+            detail="Invalid credentials",
+        )
 
-    # Verify password
     if not verify_password(student_log_in.password, user_exist.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
         )
 
-    # Check if user is verified
     if not user_exist.is_verified:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Please verify your email before logging in")
+            detail="Please verify your email before logging in",
+        )
 
-    # Generate access token
     access_token = create_access_token(data={"sub": str(user_exist.id)})
-    profile = (db.query(Profile).filter(Profile.student_id == user_exist.id).first())
+
+    result = await db.execute(
+        select(Profile).filter(Profile.student_id == user_exist.id)
+    )
+    profile = result.scalars().first()
     profile_completed = bool(profile)
-    return TokenResponse(access_token=access_token, token_type="bearer", profile_completed=profile_completed)
+
+    return TokenResponse(
+        access_token=access_token,
+        token_type="bearer",
+        profile_completed=profile_completed,
+    )
 
 
 @router.post("/forgotpassword", status_code=status.HTTP_200_OK)
-def forgot_password(
+async def forgot_password(
     password_reset: ForgotPassword,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
+    db: AsyncSession = Depends(get_db),
 ):
-    """
-    Send password reset OTP to user's email.
-    """
-    user_exist = db.query(Student).filter(
-        Student.email == password_reset.email
-    ).first()
+    """Send password reset OTP to user's email."""
+    result = await db.execute(
+        select(Student).filter(Student.email == password_reset.email)
+    )
+    user_exist = result.scalars().first()
 
-    # Return generic message to prevent email enumeration
     if not user_exist:
         return {"msg": "If the email exists, OTP has been sent"}
 
     now = datetime.utcnow()
-    
-    # Check for existing password reset OTP
-    existing_otp = (
-        db.query(PasswordResetOTP)
-        .filter(PasswordResetOTP.email == password_reset.email)
-        .first()
+
+    result = await db.execute(
+        select(PasswordResetOTP).filter(PasswordResetOTP.email == password_reset.email)
     )
+    existing_otp = result.scalars().first()
 
     if existing_otp:
         if existing_otp.expires_at and existing_otp.expires_at > now:
@@ -251,17 +253,10 @@ def forgot_password(
                 detail=f"OTP already sent. Please wait {remaining_seconds} seconds",
             )
         else:
-            db.delete(existing_otp)
-            db.commit()
+            await db.delete(existing_otp)
+            await db.commit()
 
-    # Generate new OTP
     otp = generate_otp()
-    
-    # Log OTP to console for testing (REMOVE IN PRODUCTION)
-    print(f"\n{'='*50}")
-    print(f"🔐 OTP for {password_reset.email}: {otp}")
-    print(f"⏰ Valid for {OTP_RESET_EXPIRY_MINUTES} minutes")
-    print(f"{'='*50}\n")
 
     user_verification = PasswordResetOTP(
         email=password_reset.email,
@@ -271,87 +266,71 @@ def forgot_password(
     )
 
     db.add(user_verification)
-    db.commit()
+    await db.commit()
 
     background_tasks.add_task(send_email_otp, password_reset.email, otp)
     return {"msg": "OTP sent to your email"}
 
 
 @router.post("/reset-password", status_code=status.HTTP_200_OK)
-def reset_password(data: ResetPassword, db: Session = Depends(get_db)):
-    """
-    Reset user password using OTP verification.
-    """
-    print(f"[DEBUG] Reset password request for email: {data.email}")
-    
-    # Lock the verification record to prevent race conditions
-    verification = (
-        db.query(PasswordResetOTP)
+async def reset_password(
+    data: ResetPassword,
+    db: AsyncSession = Depends(get_db),
+):
+    """Reset user password using OTP verification."""
+    result = await db.execute(
+        select(PasswordResetOTP)
         .filter(PasswordResetOTP.email == data.email)
         .with_for_update()
-        .first()
     )
+    verification = result.scalars().first()
 
     if not verification:
-        print(f"[DEBUG] No verification record found for email: {data.email}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid or expired OTP",
         )
 
-    print(f"[DEBUG] Verification found. Expires at: {verification.expires_at}, Current time: {datetime.utcnow()}")
-    
-    # Check if OTP has expired
     if verification.expires_at < datetime.utcnow():
-        print(f"[DEBUG] OTP expired for email: {data.email}")
-        db.delete(verification)
-        db.commit()
+        await db.delete(verification)
+        await db.commit()
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="OTP expired. Please request a new one",
         )
 
-    # Check if maximum attempts exceeded
     if verification.otp_attempts >= MAX_OTP_ATTEMPTS:
-        print(f"[DEBUG] Max attempts exceeded for email: {data.email}")
-        db.delete(verification)
-        db.commit()
+        await db.delete(verification)
+        await db.commit()
         raise HTTPException(
             status_code=status.HTTP_429_TOO_MANY_REQUESTS,
             detail="Too many failed attempts. Please request a new OTP",
         )
 
-    print(f"[DEBUG] Verifying OTP. Attempts so far: {verification.otp_attempts}")
-    
-    # Verify OTP
     if not verify_otp(data.otp, verification.code):
         verification.otp_attempts += 1
-        db.commit()
-        
+        await db.commit()
         remaining_attempts = MAX_OTP_ATTEMPTS - verification.otp_attempts
-        print(f"[DEBUG] Invalid OTP for email: {data.email}. Remaining attempts: {remaining_attempts}")
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Invalid OTP. {remaining_attempts} attempts remaining",
         )
 
-    print(f"[DEBUG] OTP verified successfully for email: {data.email}")
-    
-    # Find user and update password
-    user = db.query(Student).filter(Student.email == data.email).first()
+    result = await db.execute(
+        select(Student).filter(Student.email == data.email)
+    )
+    user = result.scalars().first()
 
     if not user:
-        print(f"[DEBUG] User not found for email: {data.email}")
-        db.delete(verification)
-        db.commit()
+        await db.delete(verification)
+        await db.commit()
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="User not found",
         )
 
     user.hashed_password = hash_password(data.new_password)
-    db.delete(verification)
-    db.commit()
+    await db.delete(verification)
+    await db.commit()
 
-    print(f"[DEBUG] Password reset successful for email: {data.email}")
     return {"msg": "Password reset successful"}

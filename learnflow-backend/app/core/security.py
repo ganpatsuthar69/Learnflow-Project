@@ -1,89 +1,83 @@
-# hash+jwt
-#password hash logic
-#otp generation and send otp
-
-import smtplib
 import ssl
 from email.message import EmailMessage
-from passlib.context import CryptContext # type: ignore
-from jose import jwt, JWTError # type: ignore
+from passlib.context import CryptContext  # type: ignore
+from jose import jwt, JWTError  # type: ignore
 from datetime import datetime, timedelta
 from .config import settings
-import secrets, hashlib
-from datetime import datetime, timedelta
-from app.core.config import *
+import secrets
+import hashlib
+import aiosmtplib
 
 pwd_ctx = CryptContext(schemes=["argon2"], deprecated="auto")
+
 
 def hash_password(password: str) -> str:
     return pwd_ctx.hash(password)
 
+
 def verify_password(plain_pass: str, hashed: str) -> bool:
     return pwd_ctx.verify(plain_pass, hashed)
 
-def create_access_token(data:dict, expires_minutes: int=settings.ACCESS_TOKEN_EXPIRE_MINUTES):
+
+def create_access_token(data: dict, expires_minutes: int = settings.ACCESS_TOKEN_EXPIRE_MINUTES):
     to_encode = data.copy()
-    expire = datetime.utcnow()+timedelta(minutes=expires_minutes)
+    expire = datetime.utcnow() + timedelta(minutes=expires_minutes)
     to_encode.update({"exp": expire})
-    token = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM )
+    token = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
     return token
 
-def token_decode(token:str):
+
+def token_decode(token: str):
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms = [settings.ALGORITHM])
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         return payload
-    except: 
+    except JWTError:
         return None
 
-#OTP
+
+# OTP utilities
 
 def generate_otp(length=6):
-    return ''.join(secrets.choice("0123456789") for _ in range(length))  # "348102"
+    return ''.join(secrets.choice("0123456789") for _ in range(length))
+
 
 def hash_otp(otp: str) -> str:
     return hashlib.sha256(otp.encode()).hexdigest()
 
+
 def otp_expiry(minutes):
     return datetime.utcnow() + timedelta(minutes=minutes)
+
 
 def verify_otp(plain_otp: str, hashed_otp: str) -> bool:
     return hashlib.sha256(plain_otp.encode()).hexdigest() == hashed_otp
 
 
-
-def send_email_otp(to_email: str, otp: str):
-    smtp_server = settings.MAIL_SERVER
-    smtp_port = settings.MAIL_PORT
-    smtp_user = settings.MAIL_USERNAME
-    smtp_password = settings.MAIL_PASSWORD
-
+async def send_email_otp(to_email: str, otp: str):
+    """Send OTP email asynchronously using aiosmtplib."""
     message = EmailMessage()
     message["From"] = f"LearnFlow <{settings.MAIL_FROM}>"
     message["Reply-To"] = settings.MAIL_FROM
     message["To"] = to_email
     message["Subject"] = "Your OTP - LearnFlow"
 
-    message.set_content(f"""
-                            Hi,
-
-                            Your OTP for LearnFlow is: {otp}
-
-                            This OTP is valid for 5 minutes.
-
-                            If you did not request this, please ignore this email.
-
-                            - LearnFlow Team
-                            """)
-
-    context = ssl.create_default_context()
+    message.set_content(
+        f"Hi,\n\n"
+        f"Your OTP for LearnFlow is: {otp}\n\n"
+        f"This OTP is valid for 5 minutes.\n\n"
+        f"If you did not request this, please ignore this email.\n\n"
+        f"- LearnFlow Team"
+    )
 
     try:
-        with smtplib.SMTP(smtp_server, smtp_port) as server:
-            server.starttls(context=context)
-            server.login(smtp_user, smtp_password)
-            server.send_message(message)
-
+        await aiosmtplib.send(
+            message,
+            hostname=settings.MAIL_SERVER,
+            port=settings.MAIL_PORT,
+            username=settings.MAIL_USERNAME,
+            password=settings.MAIL_PASSWORD,
+            start_tls=True,
+        )
         print("Email sent successfully")
-
     except Exception as e:
-        print("Email sending failed:", str(e))
+        print(f"Email sending failed: {e}")

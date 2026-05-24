@@ -18,7 +18,7 @@ class Roadmap(Base):
     created_by_ai = Column(Boolean, default=False)
     created_at = Column(TIMESTAMP(timezone=True), default=datetime.utcnow)
 
-    steps = relationship("Step", back_populates="roadmap", cascade="all, delete")
+    steps = relationship("Step", back_populates="roadmap", cascade="all, delete", lazy="selectin")
     user_roadmaps = relationship("UserRoadmap", back_populates="roadmap")
 
 class Step(Base):
@@ -31,7 +31,7 @@ class Step(Base):
     step_order = Column(Integer)
 
     roadmap = relationship("Roadmap", back_populates="steps")
-    topics = relationship("Topic", back_populates="step", cascade="all, delete")
+    topics = relationship("Topic", back_populates="step", cascade="all, delete", lazy="selectin")
 
 class Topic(Base):
     __tablename__ = "topics"
