@@ -1,5 +1,5 @@
 import { useNavigate } from "react-router-dom";
-import { Button } from "../../components/Profile/ui/button";
+import { Button } from "@/components/ui/button";
 import { GraduationCap, ArrowRight, BookOpen, Brain, Trophy } from "lucide-react";
 
 export default function LandingPage() {

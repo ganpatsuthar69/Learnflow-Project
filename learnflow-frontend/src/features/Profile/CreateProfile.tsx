@@ -13,11 +13,11 @@ import apiClient from "../../services/apiClient";
 import axios from "axios";
 import { useNavigate } from "react-router-dom";
 // Corrected imports pointing to src/components/Profile/ui
-import { Button } from "../../components/Profile/ui/button";
-import { Input } from "../../components/Profile/ui/input";
-import { Label } from "../../components/Profile/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/Profile/ui/select";
-import { Avatar, AvatarFallback, AvatarImage } from "../../components/Profile/ui/avatar";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface UserData {
   date_of_birth: string;

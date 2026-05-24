@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { uploadNote } from "../services/noteApi";
-import { Button } from "../../../components/Profile/ui/button";
+import { Button } from "@/components/ui/button";
 import {
     Dialog,
     DialogContent,
@@ -10,10 +10,10 @@ import {
     DialogHeader,
     DialogTitle,
     DialogTrigger,
-} from "../../../components/Profile/ui/dialog";
-import { Input } from "../../../components/Profile/ui/input";
-import { Label } from "../../../components/Profile/ui/label";
-import { Textarea } from "../../../components/Profile/ui/textarea";
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { Loader2, Upload } from "lucide-react";
 

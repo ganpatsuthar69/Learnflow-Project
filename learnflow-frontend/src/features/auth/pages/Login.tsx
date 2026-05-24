@@ -2,12 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Mail, Lock, Eye, EyeOff, Loader2 } from 'lucide-react';
 import { Link, useNavigate } from 'react-router-dom';
 import { loginRequest } from '../services/authApi';
-import { Button } from '../../../components/Profile/ui/button';
-import { Input } from '../../../components/Profile/ui/input';
-import { Label } from '../../../components/Profile/ui/label';
-// import { Checkbox } from '../../../components/Profile/ui/checkbox'; // Unused
-// Actually, I don't recall seeing Checkbox in the file list. ui folder had 48 children. I'll gamble it exists or use standard input.
-// To be safe, I'll stick to the custom checkbox I had or use standard input if I'm not sure. I'll use standard to avoid errors.
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 
 export default function Login() {
   const [email, setEmail] = useState('');

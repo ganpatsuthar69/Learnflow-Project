@@ -4,8 +4,8 @@ import { TaskCard } from "../components/TaskCard";
 import { AddTaskDialog } from "../components/AddTaskDialog";
 import AppLayout from "../../../components/AppLayout";
 import { Loader2, CheckCircle2, Clock, AlertTriangle } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "../../../components/Profile/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../../components/Profile/ui/tabs";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { isToday, parseISO, isFuture } from "date-fns";
 
 export default function StudyPlanPage() {

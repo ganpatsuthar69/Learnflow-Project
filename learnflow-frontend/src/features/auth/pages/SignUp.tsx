@@ -2,9 +2,9 @@ import React, { useState } from 'react'
 import { User, Mail, Lock, Phone, Eye, EyeOff, Loader2 } from 'lucide-react'
 import { Link, Outlet, useNavigate } from 'react-router-dom'
 import { signupRequest } from '../services/authApi'
-import { Button } from '../../../components/Profile/ui/button'
-import { Input } from '../../../components/Profile/ui/input'
-import { Label } from '../../../components/Profile/ui/label'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 export default function Signup() {
   const [full_name, setName] = useState('')

@@ -2,9 +2,9 @@ import React, { useState } from 'react'
 import { Mail, ShieldCheck, Loader2 } from 'lucide-react'
 import { verifyOtpRequest } from '../services/authApi'
 import { useNavigate, useLocation } from 'react-router-dom'
-import { Button } from '../../../components/Profile/ui/button'
-import { Input } from '../../../components/Profile/ui/input'
-import { Label } from '../../../components/Profile/ui/label'
+import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
 
 export default function VerifyOTP() {
   const [otp, setOtp] = useState('')

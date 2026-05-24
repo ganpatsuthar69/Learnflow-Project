@@ -1,8 +1,8 @@
-import { Card, CardContent, CardHeader, CardTitle } from "../../../components/Profile/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { Note } from "../services/noteApi";
 import { FileText, Image as ImageIcon, File, FileType, Download } from "lucide-react";
 import { format } from "date-fns";
-import { Button } from "../../../components/Profile/ui/button";
+import { Button } from "@/components/ui/button";
 
 interface NoteCardProps {
     note: Note;

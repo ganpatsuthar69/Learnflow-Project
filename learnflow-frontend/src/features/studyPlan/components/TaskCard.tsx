@@ -1,10 +1,10 @@
 import { type Task, updateTask } from "../services/studyPlanApi";
-import { Card, CardContent } from "../../../components/Profile/ui/card";
-import { Checkbox } from "../../../components/Profile/ui/checkbox";
-import { Badge } from "../../../components/Profile/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
 import { Clock, AlertCircle, ArrowRight, Calendar } from "lucide-react";
 import { format } from "date-fns";
-import { cn } from "../../../lib/utils";
+import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface TaskCardProps {
