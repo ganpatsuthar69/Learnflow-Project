@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Form, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from typing import List
@@ -7,6 +7,7 @@ from app.db.session import get_db
 from app.models.user import Student
 from app.models.note import Note
 from app.schema.note import NoteResponse
+from app.services.queue_client import trigger_note_summarization
 import os
 import uuid
 import httpx
@@ -97,6 +98,17 @@ async def upload_note(
             detail="Failed to save note metadata",
         )
 
+    # Trigger AI summarization in background via Lambda
+    try:
+        trigger_note_summarization(
+            note_id=str(new_note.id),
+            student_id=str(current_user.id),
+            file_url=file_path,
+            action="summary",
+        )
+    except Exception:
+        pass  # Non-critical — note is saved, summarization can be retried
+
     return new_note
 
 
@@ -142,3 +154,32 @@ async def get_notes(
             )
 
     return response_notes
+
+
+@router.post("/{note_id}/summarize", status_code=status.HTTP_202_ACCEPTED)
+async def request_note_summarization(
+    note_id: str,
+    action: str = Query("summary", description="summary|flashcards|mcqs|keypoints"),
+    current_user: Student = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Request AI processing for a note (summary, flashcards, MCQs, key points)."""
+    result = await db.execute(
+        select(Note).filter(Note.id == note_id, Note.student_id == current_user.id)
+    )
+    note = result.scalars().first()
+
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+
+    if action not in ("summary", "flashcards", "mcqs", "keypoints"):
+        raise HTTPException(status_code=400, detail="Invalid action. Use: summary, flashcards, mcqs, keypoints")
+
+    trigger_note_summarization(
+        note_id=str(note.id),
+        student_id=str(current_user.id),
+        file_url=note.file_url,
+        action=action,
+    )
+
+    return {"msg": f"{action} generation started", "note_id": note_id}

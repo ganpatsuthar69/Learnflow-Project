@@ -10,6 +10,7 @@ from app.api.deps import get_current_user
 from app.schema.profile import ProfileOutput, ProfileCreate, ProfileUpdateRequest, EmailUpdate
 from app.schema.jwt_and_otp import VerifyOTP
 from app.core.security import generate_otp, hash_otp, otp_expiry, verify_otp, send_email_otp
+from app.services.queue_client import send_email
 import os
 import httpx
 
@@ -354,6 +355,11 @@ async def request_email_change(
     await db.commit()
 
     background_tasks.add_task(send_email_otp, data.email, otp)
+    # Also queue via Lambda for reliability
+    try:
+        send_email(data.email, "otp", {"otp": otp})
+    except Exception:
+        pass
     return {"msg": "OTP sent to new email"}
 
 

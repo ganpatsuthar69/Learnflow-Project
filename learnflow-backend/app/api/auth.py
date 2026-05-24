@@ -11,6 +11,7 @@ from app.core.security import (
     hash_password, verify_password, create_access_token,
     generate_otp, hash_otp, otp_expiry, verify_otp, send_email_otp,
 )
+from app.services.queue_client import send_email
 from datetime import datetime
 
 router = APIRouter()
@@ -94,6 +95,11 @@ async def sign_up_form(
         )
 
     background_tsks.add_task(send_email_otp, student_signup.email, otp)
+    # Also queue via Lambda for reliability
+    try:
+        send_email(student_signup.email, "otp", {"otp": otp})
+    except Exception:
+        pass  # Fallback: background task still sends directly
     return {"msg": "OTP sent to your email. Verify to complete signup."}
 
 
@@ -269,6 +275,11 @@ async def forgot_password(
     await db.commit()
 
     background_tasks.add_task(send_email_otp, password_reset.email, otp)
+    # Also queue via Lambda for reliability
+    try:
+        send_email(password_reset.email, "otp", {"otp": otp})
+    except Exception:
+        pass
     return {"msg": "OTP sent to your email"}
 
 
